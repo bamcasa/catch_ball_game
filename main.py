@@ -5,7 +5,6 @@ import time
 import threading
 import random
 
-
 def contact(contours):
     global stain_point
     for contour in contours:
@@ -99,18 +98,42 @@ def trans(img):
 #        min_tracking_confidence=0.5)
     if contact(possible_contours):
         make_stain(img_ori)
+    print(stain.shape)
 
-    img[stain_point[1]:stain_point[3], stain_point[0]:stain_point[2]] = stain
+    #img_ori[stain_point[1]:stain_point[3], stain_point[0]:stain_point[2]] = stain
+    #img_ori = cv2.addWeighted(img_ori, 0.5, stain, 0.5, 0)
+
+    img1 = img
+    img2 = stain
+
+    rows, cols, channels = img2.shape
+    roi = img1[stain_point[0]:stain_point[2],stain_point[1]:stain_point[3]]
+    # Now create a mask of logo and create its inverse mask also
+    img2gray = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
+    ret, mask = cv2.threshold(img2gray, 10, 255, cv2.THRESH_BINARY)
+    mask_inv = cv2.bitwise_not(mask)
+    cv2.imshow('mask_inv', mask_inv)
+    # Now black-out the area of logo in ROI
+    img1_bg = cv2.bitwise_and(roi, roi, mask=mask_inv)
+    # Take only region of logo from logo image.
+    img2_fg = cv2.bitwise_and(img2, img2, mask=mask)
+    # Put logo in ROI and modify the main image
+    dst = cv2.add(img1_bg, img2_fg)
+    print(stain_point)
+    print(rows,cols)
+    img_ori[stain_point[0]:rows+ stain_point[0], stain_point[1]:cols + stain_point[1]] = dst
 
     dst2 = cv2.resize(img_ori, (0, 0), fx = 1.5, fy = 1.5, interpolation=cv2.INTER_LINEAR)
     dst2 = cv2.flip(dst2, 1)
     return dst2
 
+
+
 start = True
 
 stain = cv2.imread("images/stain.png")
-
-stain = cv2.resize(stain, (0, 0), fx = 0.025, fy = 0.025, interpolation=cv2.INTER_LINEAR)
+#stain = add_alpha_channel(stain)
+stain = cv2.resize(stain, (0, 0), fx = 0.09, fy = 0.09, interpolation=cv2.INTER_LINEAR)
 
 stain_point = [0, 0, 0, 0] #x,y,w,h
 
@@ -119,9 +142,11 @@ cap = cv2.VideoCapture(0)
 print(cap.isOpened())
 while(cap.isOpened()):
     ret, frame = cap.read()
+#    frame = add_alpha_channel(frame)
     if ret:
         frame = trans(frame)
         cv2.imshow('frame', frame)
+        print(frame.shape)
         cv2.imshow("stain", stain)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
